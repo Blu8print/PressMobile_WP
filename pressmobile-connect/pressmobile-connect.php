@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: PressMobile Connect
- * Plugin URI:  https://pressmobile.app
+ * Plugin URI:  https://pressmobile.io
  * Description: Connect your WordPress site to the PressMobile mobile app via QR code.
  * Version:     1.0.0
  * Author:      PressMobile
