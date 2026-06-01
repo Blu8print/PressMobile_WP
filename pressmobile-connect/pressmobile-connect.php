@@ -468,6 +468,13 @@ function pressmobile_register_routes(): void {
 		'permission_callback' => 'pressmobile_authenticate',
 	] );
 
+	// Trigger plugin self-update from app
+	register_rest_route( PRESSMOBILE_API_NS, '/update', [
+		'methods'             => 'POST',
+		'callback'            => 'pressmobile_trigger_update',
+		'permission_callback' => 'pressmobile_authenticate',
+	] );
+
 	// Adopt post (mark as PressMobile-managed so it can be edited in the app)
 	register_rest_route( PRESSMOBILE_API_NS, '/posts/(?P<id>\d+)/adopt', [
 		'methods'             => 'POST',
@@ -517,6 +524,12 @@ function pressmobile_get_info(): WP_REST_Response {
 			fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name ],
 			get_tags( [ 'hide_empty' => false ] )
 		) ),
+		// Plugin version info
+		'plugin_version'         => get_file_data( __FILE__, [ 'Version' => 'Version' ] )['Version'],
+		'latest_version'         => (function() {
+			$release = pressmobile_get_latest_release();
+			return $release ? ltrim( $release->tag_name, 'v' ) : null;
+		})(),
 		// Company profile fields
 		'company'                => $s['company']                ?? null,
 		'industry'               => $s['industry']               ?? null,
@@ -760,6 +773,56 @@ function pressmobile_create_category( WP_REST_Request $req ): WP_REST_Response {
 	}
 	$term = get_term( $result['term_id'], 'category' );
 	return new WP_REST_Response( [ 'id' => $term->term_id, 'name' => $term->name ], 201 );
+}
+
+// ── POST /update ──────────────────────────────────────────────────────────────
+
+function pressmobile_trigger_update(): WP_REST_Response|WP_Error {
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+
+	if ( ! WP_Filesystem() ) {
+		return new WP_Error( 'fs_unavailable', 'Filesystem not available — update via WP admin instead.', [ 'status' => 503 ] );
+	}
+
+	$release = pressmobile_get_latest_release();
+	if ( ! $release ) {
+		return new WP_Error( 'no_release', 'Could not fetch latest release from GitHub.', [ 'status' => 503 ] );
+	}
+
+	$zip_url = pressmobile_release_zip_url( $release );
+	if ( ! $zip_url ) {
+		return new WP_Error( 'no_zip', 'No zip asset found in release.', [ 'status' => 503 ] );
+	}
+
+	$plugin_file = plugin_basename( __FILE__ );
+	$new_version = ltrim( $release->tag_name, 'v' );
+
+	// Inject the update into the transient so Plugin_Upgrader can find the package URL.
+	$current = get_site_transient( 'update_plugins' ) ?: new stdClass();
+	if ( ! isset( $current->response ) ) $current->response = [];
+	$current->response[ $plugin_file ] = (object) [
+		'slug'        => 'pressmobile-connect',
+		'plugin'      => $plugin_file,
+		'new_version' => $new_version,
+		'package'     => $zip_url,
+		'url'         => 'https://github.com/Blu8print/PressMobile_WP',
+	];
+	set_site_transient( 'update_plugins', $current );
+
+	$upgrader = new Plugin_Upgrader( new Automatic_Upgrader_Skin() );
+	$result   = $upgrader->upgrade( $plugin_file );
+
+	if ( is_wp_error( $result ) ) {
+		return new WP_Error( 'upgrade_failed', $result->get_error_message(), [ 'status' => 500 ] );
+	}
+	if ( $result === false ) {
+		return new WP_Error( 'upgrade_failed', 'Plugin upgrade returned false — check WP filesystem permissions.', [ 'status' => 500 ] );
+	}
+
+	delete_transient( 'pressmobile_latest_release' );
+
+	return new WP_REST_Response( [ 'ok' => true, 'version' => $new_version ], 200 );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
