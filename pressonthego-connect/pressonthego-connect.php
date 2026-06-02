@@ -1,53 +1,53 @@
 <?php
 /**
- * Plugin Name: PressMobile Connect
- * Plugin URI:  https://pressmobile.io
- * Description: Connect your WordPress site to the PressMobile mobile app via QR code.
+ * Plugin Name: PressOnTheGO Connect
+ * Plugin URI:  https://pressonthego.io
+ * Description: Connect your WordPress site to the PressOnTheGO mobile app via QR code.
  * Version:     1.0.0
- * Author:      PressMobile
+ * Author:      PressOnTheGO
  * License:     GPL-2.0+
- * Update URI:  https://github.com/Blu8print/PressMobile_WP
+ * Update URI:  https://github.com/Blu8print/PressOnTheGO_WP
  */
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'PRESSMOBILE_OPTION_KEY',  'pressmobile_api_key' );
-define( 'PRESSMOBILE_API_NS',      'pressmobile/v1' );
-define( 'PRESSMOBILE_SETTINGS_KEY', 'pressmobile_settings' );
+define( 'PRESSONTHEGO_OPTION_KEY',  'pressonthego_api_key' );
+define( 'PRESSONTHEGO_API_NS',      'pressonthego/v1' );
+define( 'PRESSONTHEGO_SETTINGS_KEY', 'pressonthego_settings' );
 
 // ── Activation ────────────────────────────────────────────────────────────────
 
-register_activation_hook( __FILE__, 'pressmobile_activate' );
-function pressmobile_activate(): void {
-	if ( ! get_option( PRESSMOBILE_OPTION_KEY ) ) {
-		update_option( PRESSMOBILE_OPTION_KEY, pressmobile_generate_key() );
+register_activation_hook( __FILE__, 'pressonthego_activate' );
+function pressonthego_activate(): void {
+	if ( ! get_option( PRESSONTHEGO_OPTION_KEY ) ) {
+		update_option( PRESSONTHEGO_OPTION_KEY, pressonthego_generate_key() );
 	}
 }
 
-function pressmobile_generate_key(): string {
+function pressonthego_generate_key(): string {
 	return 'pg_' . bin2hex( random_bytes( 24 ) );
 }
 
 // ── Admin menu + assets ───────────────────────────────────────────────────────
 
-add_action( 'admin_menu', 'pressmobile_admin_menu' );
-function pressmobile_admin_menu(): void {
+add_action( 'admin_menu', 'pressonthego_admin_menu' );
+function pressonthego_admin_menu(): void {
 	add_options_page(
-		'PressMobile Connect',
-		'PressMobile',
+		'PressOnTheGO Connect',
+		'PressOnTheGO',
 		'manage_options',
-		'pressmobile',
-		'pressmobile_render_admin_page'
+		'pressonthego',
+		'pressonthego_render_admin_page'
 	);
 }
 
-add_action( 'admin_enqueue_scripts', 'pressmobile_enqueue_admin_assets' );
-function pressmobile_enqueue_admin_assets( string $hook ): void {
-	if ( $hook !== 'settings_page_pressmobile' ) {
+add_action( 'admin_enqueue_scripts', 'pressonthego_enqueue_admin_assets' );
+function pressonthego_enqueue_admin_assets( string $hook ): void {
+	if ( $hook !== 'settings_page_pressonthego' ) {
 		return;
 	}
 	wp_enqueue_script(
-		'pressmobile-qrcode',
+		'pressonthego-qrcode',
 		plugin_dir_url( __FILE__ ) . 'qrcode.min.js',
 		[],
 		'1.0.0',
@@ -57,12 +57,12 @@ function pressmobile_enqueue_admin_assets( string $hook ): void {
 
 // ── Regenerate key ────────────────────────────────────────────────────────────
 
-add_action( 'admin_post_pressmobile_save_settings', 'pressmobile_handle_save_settings' );
-function pressmobile_handle_save_settings(): void {
+add_action( 'admin_post_pressonthego_save_settings', 'pressonthego_handle_save_settings' );
+function pressonthego_handle_save_settings(): void {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( 'Unauthorized', 403 );
 	}
-	check_admin_referer( 'pressmobile_save_settings' );
+	check_admin_referer( 'pressonthego_save_settings' );
 
 	$fields = [
 		'company', 'industry', 'company_description', 'target_audience',
@@ -71,43 +71,43 @@ function pressmobile_handle_save_settings(): void {
 		'tone_of_voice', 'language',
 	];
 
-	$existing = get_option( PRESSMOBILE_SETTINGS_KEY ) ?: [];
+	$existing = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
 	foreach ( $fields as $field ) {
 		$existing[ $field ] = sanitize_text_field( wp_unslash( $_POST[ $field ] ?? '' ) );
 	}
-	update_option( PRESSMOBILE_SETTINGS_KEY, $existing );
+	update_option( PRESSONTHEGO_SETTINGS_KEY, $existing );
 
-	wp_redirect( admin_url( 'options-general.php?page=pressmobile&settings_saved=1' ) );
+	wp_redirect( admin_url( 'options-general.php?page=pressonthego&settings_saved=1' ) );
 	exit;
 }
 
-add_action( 'admin_post_pressmobile_regenerate', 'pressmobile_handle_regenerate' );
-function pressmobile_handle_regenerate(): void {
+add_action( 'admin_post_pressonthego_regenerate', 'pressonthego_handle_regenerate' );
+function pressonthego_handle_regenerate(): void {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( 'Unauthorized', 403 );
 	}
-	check_admin_referer( 'pressmobile_regenerate' );
-	update_option( PRESSMOBILE_OPTION_KEY, pressmobile_generate_key() );
-	wp_redirect( admin_url( 'options-general.php?page=pressmobile&regenerated=1' ) );
+	check_admin_referer( 'pressonthego_regenerate' );
+	update_option( PRESSONTHEGO_OPTION_KEY, pressonthego_generate_key() );
+	wp_redirect( admin_url( 'options-general.php?page=pressonthego&regenerated=1' ) );
 	exit;
 }
 
 // ── Admin page ────────────────────────────────────────────────────────────────
 
-function pressmobile_render_admin_page(): void {
-	$api_key       = get_option( PRESSMOBILE_OPTION_KEY );
+function pressonthego_render_admin_page(): void {
+	$api_key       = get_option( PRESSONTHEGO_OPTION_KEY );
 	$site_url      = get_site_url();
 	$qr_payload    = wp_json_encode( [ 'url' => $site_url, 'key' => $api_key ] );
 	$regenerated   = isset( $_GET['regenerated'] );
 	$settings_saved = isset( $_GET['settings_saved'] );
-	$s             = get_option( PRESSMOBILE_SETTINGS_KEY ) ?: [];
+	$s             = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
 	?>
 	<div class="wrap">
-		<h1>PressMobile Connect</h1>
+		<h1>PressOnTheGO Connect</h1>
 
 		<?php if ( $regenerated ) : ?>
 			<div class="notice notice-success is-dismissible">
-				<p>API key regenerated. Scan the new QR code in the PressMobile app to reconnect.</p>
+				<p>API key regenerated. Scan the new QR code in the PressOnTheGO app to reconnect.</p>
 			</div>
 		<?php endif; ?>
 
@@ -120,12 +120,12 @@ function pressmobile_render_admin_page(): void {
 		<div style="max-width:520px;margin-top:24px;">
 
 			<p style="color:#555;">
-				Scan this QR code in the PressMobile app to connect your site instantly.
+				Scan this QR code in the PressOnTheGO app to connect your site instantly.
 			</p>
 
 			<div style="margin:24px 0;padding:16px;background:#fff;border:1px solid #ddd;display:inline-block;border-radius:8px;">
-				<div id="pressmobile-qr"></div>
-				<p id="pressmobile-qr-error" style="color:#b00020;display:none;margin:8px 0 0;max-width:220px;"></p>
+				<div id="pressonthego-qr"></div>
+				<p id="pressonthego-qr-error" style="color:#b00020;display:none;margin:8px 0 0;max-width:220px;"></p>
 			</div>
 
 			<table class="form-table" style="margin-top:0;">
@@ -136,7 +136,7 @@ function pressmobile_render_admin_page(): void {
 				<tr>
 					<th scope="row">API key</th>
 					<td>
-						<code id="pressmobile-key" style="word-break:break-all;"><?php echo esc_html( $api_key ); ?></code>
+						<code id="pressonthego-key" style="word-break:break-all;"><?php echo esc_html( $api_key ); ?></code>
 					</td>
 				</tr>
 			</table>
@@ -146,16 +146,16 @@ function pressmobile_render_admin_page(): void {
 			<h3 style="margin-top:0;">Rotate API key</h3>
 			<p style="color:#555;">
 				Generate a new key if your current one is compromised.
-				<strong>Your existing PressMobile connection will stop working</strong> until you scan the new QR code.
+				<strong>Your existing PressOnTheGO connection will stop working</strong> until you scan the new QR code.
 			</p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="pressmobile_regenerate">
-				<?php wp_nonce_field( 'pressmobile_regenerate' ); ?>
+				<input type="hidden" name="action" value="pressonthego_regenerate">
+				<?php wp_nonce_field( 'pressonthego_regenerate' ); ?>
 				<button
 					type="submit"
 					class="button button-secondary"
-					onclick="return confirm('This will invalidate your current API key.\n\nYou will need to scan the new QR code in PressMobile to reconnect.\n\nContinue?');"
+					onclick="return confirm('This will invalidate your current API key.\n\nYou will need to scan the new QR code in PressOnTheGO to reconnect.\n\nContinue?');"
 				>
 					Regenerate key
 				</button>
@@ -168,13 +168,13 @@ function pressmobile_render_admin_page(): void {
 		<details open>
 			<summary style="cursor:pointer;color:#1d2327;font-weight:600;font-size:14px;">Company profile</summary>
 			<p style="color:#555;margin:8px 0 16px;">
-				Fill in your company details so the PressMobile app can write content tailored to your business.
+				Fill in your company details so the PressOnTheGO app can write content tailored to your business.
 				You can also set these up in the app itself.
 			</p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="pressmobile_save_settings">
-				<?php wp_nonce_field( 'pressmobile_save_settings' ); ?>
+				<input type="hidden" name="action" value="pressonthego_save_settings">
+				<?php wp_nonce_field( 'pressonthego_save_settings' ); ?>
 
 				<h4 style="margin:0 0 8px;">Company</h4>
 				<table class="form-table" style="margin-top:0;">
@@ -278,8 +278,8 @@ function pressmobile_render_admin_page(): void {
 					<tr><th>Plugin dir URL</th><td><?php echo esc_html( plugin_dir_url( __FILE__ ) ); ?></td></tr>
 					<tr><th>API key set</th><td><?php echo $api_key ? 'Yes (' . esc_html( substr( $api_key, 0, 8 ) ) . '…)' : '<strong style="color:#b00020">NO — deactivate and reactivate the plugin</strong>'; ?></td></tr>
 					<tr><th>QR payload</th><td><code style="word-break:break-all;"><?php echo esc_html( $qr_payload ); ?></code></td></tr>
-					<tr><th>QRCode library</th><td id="pressmobile-debug-lib">Checking…</td></tr>
-					<tr><th>QR render</th><td id="pressmobile-debug-render">Pending…</td></tr>
+					<tr><th>QRCode library</th><td id="pressonthego-debug-lib">Checking…</td></tr>
+					<tr><th>QR render</th><td id="pressonthego-debug-render">Pending…</td></tr>
 				</table>
 			</details>
 
@@ -291,9 +291,9 @@ function pressmobile_render_admin_page(): void {
 	document.addEventListener('DOMContentLoaded', function() {
 	(function() {
 		var payload = <?php echo wp_json_encode( $qr_payload ); ?>;
-		var libEl   = document.getElementById('pressmobile-debug-lib');
-		var renEl   = document.getElementById('pressmobile-debug-render');
-		var errEl   = document.getElementById('pressmobile-qr-error');
+		var libEl   = document.getElementById('pressonthego-debug-lib');
+		var renEl   = document.getElementById('pressonthego-debug-render');
+		var errEl   = document.getElementById('pressonthego-qr-error');
 
 		if (typeof QRCode === 'undefined') {
 			libEl.innerHTML = '<strong style="color:#b00020">NOT loaded — check browser console (F12) for script errors</strong>';
@@ -306,7 +306,7 @@ function pressmobile_render_admin_page(): void {
 		libEl.textContent = 'Loaded ✓';
 
 		try {
-			new QRCode(document.getElementById('pressmobile-qr'), {
+			new QRCode(document.getElementById('pressonthego-qr'), {
 				text:         payload,
 				width:        220,
 				height:       220,
@@ -328,11 +328,11 @@ function pressmobile_render_admin_page(): void {
 
 // ── Auto-update (GitHub releases) ────────────────────────────────────────────
 
-add_filter( 'pre_set_site_transient_update_plugins', 'pressmobile_check_for_update' );
-function pressmobile_check_for_update( $transient ) {
+add_filter( 'pre_set_site_transient_update_plugins', 'pressonthego_check_for_update' );
+function pressonthego_check_for_update( $transient ) {
 	if ( empty( $transient->checked ) ) return $transient;
 
-	$release = pressmobile_get_latest_release();
+	$release = pressonthego_get_latest_release();
 	if ( ! $release ) return $transient;
 
 	$latest  = ltrim( $release->tag_name, 'v' );
@@ -340,49 +340,49 @@ function pressmobile_check_for_update( $transient ) {
 
 	if ( version_compare( $latest, $current, '<=' ) ) return $transient;
 
-	$zip_url = pressmobile_release_zip_url( $release );
+	$zip_url = pressonthego_release_zip_url( $release );
 	if ( ! $zip_url ) return $transient;
 
 	$transient->response[ plugin_basename( __FILE__ ) ] = (object) [
-		'slug'        => 'pressmobile-connect',
+		'slug'        => 'pressonthego-connect',
 		'plugin'      => plugin_basename( __FILE__ ),
 		'new_version' => $latest,
-		'url'         => 'https://github.com/Blu8print/PressMobile_WP',
+		'url'         => 'https://github.com/Blu8print/PressOnTheGO_WP',
 		'package'     => $zip_url,
 	];
 
 	return $transient;
 }
 
-add_filter( 'plugins_api', 'pressmobile_plugin_info', 20, 3 );
-function pressmobile_plugin_info( $result, $action, $args ) {
-	if ( $action !== 'plugin_information' || ( $args->slug ?? '' ) !== 'pressmobile-connect' ) {
+add_filter( 'plugins_api', 'pressonthego_plugin_info', 20, 3 );
+function pressonthego_plugin_info( $result, $action, $args ) {
+	if ( $action !== 'plugin_information' || ( $args->slug ?? '' ) !== 'pressonthego-connect' ) {
 		return $result;
 	}
 
-	$release = pressmobile_get_latest_release();
+	$release = pressonthego_get_latest_release();
 	if ( ! $release ) return $result;
 
 	return (object) [
-		'name'          => 'PressMobile Connect',
-		'slug'          => 'pressmobile-connect',
+		'name'          => 'PressOnTheGO Connect',
+		'slug'          => 'pressonthego-connect',
 		'version'       => ltrim( $release->tag_name, 'v' ),
-		'author'        => 'PressMobile',
-		'homepage'      => 'https://github.com/Blu8print/PressMobile_WP',
-		'download_link' => pressmobile_release_zip_url( $release ),
+		'author'        => 'PressOnTheGO',
+		'homepage'      => 'https://github.com/Blu8print/PressOnTheGO_WP',
+		'download_link' => pressonthego_release_zip_url( $release ),
 		'sections'      => [
-			'description' => 'Connect your WordPress site to the PressMobile mobile app.',
+			'description' => 'Connect your WordPress site to the PressOnTheGO mobile app.',
 			'changelog'   => nl2br( esc_html( $release->body ?? '' ) ),
 		],
 	];
 }
 
-function pressmobile_get_latest_release(): ?object {
-	$cached = get_transient( 'pressmobile_latest_release' );
+function pressonthego_get_latest_release(): ?object {
+	$cached = get_transient( 'pressonthego_latest_release' );
 	if ( $cached ) return $cached;
 
 	$response = wp_remote_get(
-		'https://api.github.com/repos/Blu8print/PressMobile_WP/releases/latest',
+		'https://api.github.com/repos/Blu8print/PressOnTheGO_WP/releases/latest',
 		[
 			'headers' => [ 'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) ],
 			'timeout' => 10,
@@ -396,11 +396,11 @@ function pressmobile_get_latest_release(): ?object {
 	$data = json_decode( wp_remote_retrieve_body( $response ) );
 	if ( empty( $data->tag_name ) ) return null;
 
-	set_transient( 'pressmobile_latest_release', $data, 12 * HOUR_IN_SECONDS );
+	set_transient( 'pressonthego_latest_release', $data, 12 * HOUR_IN_SECONDS );
 	return $data;
 }
 
-function pressmobile_release_zip_url( object $release ): ?string {
+function pressonthego_release_zip_url( object $release ): ?string {
 	foreach ( $release->assets ?? [] as $asset ) {
 		if ( pathinfo( $asset->name, PATHINFO_EXTENSION ) === 'zip' ) {
 			return $asset->browser_download_url;
@@ -411,93 +411,93 @@ function pressmobile_release_zip_url( object $release ): ?string {
 
 // ── REST routes ───────────────────────────────────────────────────────────────
 
-add_action( 'rest_api_init', 'pressmobile_register_routes' );
-function pressmobile_register_routes(): void {
+add_action( 'rest_api_init', 'pressonthego_register_routes' );
+function pressonthego_register_routes(): void {
 	// Site info (categories, tags, site name)
-	register_rest_route( PRESSMOBILE_API_NS, '/info', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/info', [
 		'methods'             => 'GET',
-		'callback'            => 'pressmobile_get_info',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_get_info',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
 	// List posts
-	register_rest_route( PRESSMOBILE_API_NS, '/posts', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/posts', [
 		'methods'             => 'GET',
-		'callback'            => 'pressmobile_get_posts',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_get_posts',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
 	// Create post
-	register_rest_route( PRESSMOBILE_API_NS, '/posts', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/posts', [
 		'methods'             => 'POST',
-		'callback'            => 'pressmobile_create_post',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_create_post',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
 	// Get single post
-	register_rest_route( PRESSMOBILE_API_NS, '/posts/(?P<id>\d+)', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/posts/(?P<id>\d+)', [
 		'methods'             => 'GET',
-		'callback'            => 'pressmobile_get_post',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_get_post',
+		'permission_callback' => 'pressonthego_authenticate',
 		'args'                => [
 			'id' => [ 'validate_callback' => fn( $v ) => is_numeric( $v ) ],
 		],
 	] );
 
 	// Update post
-	register_rest_route( PRESSMOBILE_API_NS, '/posts/(?P<id>\d+)', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/posts/(?P<id>\d+)', [
 		'methods'             => 'PUT',
-		'callback'            => 'pressmobile_update_post',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_update_post',
+		'permission_callback' => 'pressonthego_authenticate',
 		'args'                => [
 			'id' => [ 'validate_callback' => fn( $v ) => is_numeric( $v ) ],
 		],
 	] );
 
 	// Update company settings (from app)
-	register_rest_route( PRESSMOBILE_API_NS, '/settings', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/settings', [
 		'methods'             => 'PUT',
-		'callback'            => 'pressmobile_update_settings',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_update_settings',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
 	// Upload media
-	register_rest_route( PRESSMOBILE_API_NS, '/media', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/media', [
 		'methods'             => 'POST',
-		'callback'            => 'pressmobile_upload_media',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_upload_media',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
 	// Trigger plugin self-update from app
-	register_rest_route( PRESSMOBILE_API_NS, '/update', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/update', [
 		'methods'             => 'POST',
-		'callback'            => 'pressmobile_trigger_update',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_trigger_update',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
-	// Adopt post (mark as PressMobile-managed so it can be edited in the app)
-	register_rest_route( PRESSMOBILE_API_NS, '/posts/(?P<id>\d+)/adopt', [
+	// Adopt post (mark as PressOnTheGO-managed so it can be edited in the app)
+	register_rest_route( PRESSONTHEGO_API_NS, '/posts/(?P<id>\d+)/adopt', [
 		'methods'             => 'POST',
-		'callback'            => 'pressmobile_adopt_post',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_adopt_post',
+		'permission_callback' => 'pressonthego_authenticate',
 		'args'                => [
 			'id' => [ 'validate_callback' => fn( $v ) => is_numeric( $v ) ],
 		],
 	] );
 
 	// Create category
-	register_rest_route( PRESSMOBILE_API_NS, '/categories', [
+	register_rest_route( PRESSONTHEGO_API_NS, '/categories', [
 		'methods'             => 'POST',
-		'callback'            => 'pressmobile_create_category',
-		'permission_callback' => 'pressmobile_authenticate',
+		'callback'            => 'pressonthego_create_category',
+		'permission_callback' => 'pressonthego_authenticate',
 	] );
 }
 
 // ── Authentication ────────────────────────────────────────────────────────────
 
-function pressmobile_authenticate( WP_REST_Request $request ): bool {
-	$key = $request->get_header( 'X-PressMobile-Key' );
-	if ( ! $key || $key !== get_option( PRESSMOBILE_OPTION_KEY ) ) {
+function pressonthego_authenticate( WP_REST_Request $request ): bool {
+	$key = $request->get_header( 'X-PressOnTheGO-Key' );
+	if ( ! $key || $key !== get_option( PRESSONTHEGO_OPTION_KEY ) ) {
 		return false;
 	}
 	// Set current user to first admin so WP internals (capabilities, authorship) work correctly.
@@ -510,8 +510,8 @@ function pressmobile_authenticate( WP_REST_Request $request ): bool {
 
 // ── GET /info ─────────────────────────────────────────────────────────────────
 
-function pressmobile_get_info(): WP_REST_Response {
-	$s = get_option( PRESSMOBILE_SETTINGS_KEY ) ?: [];
+function pressonthego_get_info(): WP_REST_Response {
+	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
 
 	return new WP_REST_Response( [
 		'name'                   => get_bloginfo( 'name' ),
@@ -527,7 +527,7 @@ function pressmobile_get_info(): WP_REST_Response {
 		// Plugin version info
 		'plugin_version'         => get_file_data( __FILE__, [ 'Version' => 'Version' ] )['Version'],
 		'latest_version'         => (function() {
-			$release = pressmobile_get_latest_release();
+			$release = pressonthego_get_latest_release();
 			return $release ? ltrim( $release->tag_name, 'v' ) : null;
 		})(),
 		// Company profile fields
@@ -552,7 +552,7 @@ function pressmobile_get_info(): WP_REST_Response {
 
 // ── PUT /settings ─────────────────────────────────────────────────────────────
 
-function pressmobile_update_settings( WP_REST_Request $request ): WP_REST_Response {
+function pressonthego_update_settings( WP_REST_Request $request ): WP_REST_Response {
 	$p = $request->get_json_params() ?? [];
 
 	$fields = [
@@ -562,20 +562,20 @@ function pressmobile_update_settings( WP_REST_Request $request ): WP_REST_Respon
 		'tone_of_voice', 'language',
 	];
 
-	$existing = get_option( PRESSMOBILE_SETTINGS_KEY ) ?: [];
+	$existing = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
 	foreach ( $fields as $field ) {
 		if ( array_key_exists( $field, $p ) ) {
 			$existing[ $field ] = sanitize_text_field( (string) ( $p[ $field ] ?? '' ) );
 		}
 	}
-	update_option( PRESSMOBILE_SETTINGS_KEY, $existing );
+	update_option( PRESSONTHEGO_SETTINGS_KEY, $existing );
 
 	return new WP_REST_Response( [ 'ok' => true ], 200 );
 }
 
 // ── GET /posts ────────────────────────────────────────────────────────────────
 
-function pressmobile_get_posts(): WP_REST_Response {
+function pressonthego_get_posts(): WP_REST_Response {
 	$posts = get_posts( [
 		'post_status'    => [ 'publish', 'draft' ],
 		'posts_per_page' => 20,
@@ -589,20 +589,20 @@ function pressmobile_get_posts(): WP_REST_Response {
 		'status'          => $p->post_status,
 		'date'            => get_post_datetime( $p )->format( 'c' ),
 		'url'             => get_permalink( $p ),
-		'is_pressmobile_post' => (bool) get_post_meta( $p->ID, '_pressmobile_post', true ),
+		'is_pressonthego_post' => (bool) get_post_meta( $p->ID, '_pressonthego_post', true ),
 	], $posts ) );
 }
 
 // ── GET /posts/{id} ───────────────────────────────────────────────────────────
 
-function pressmobile_get_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+function pressonthego_get_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 	$id   = intval( $request['id'] );
 	$post = get_post( $id );
 	if ( ! $post ) {
 		return new WP_Error( 'not_found', 'Post not found.', [ 'status' => 404 ] );
 	}
 
-	[ $seo_title, $meta_desc ] = pressmobile_read_seo_meta( $id );
+	[ $seo_title, $meta_desc ] = pressonthego_read_seo_meta( $id );
 
 	// Categories
 	$categories = array_values( array_map(
@@ -633,16 +633,16 @@ function pressmobile_get_post( WP_REST_Request $request ): WP_REST_Response|WP_E
 		'featured_media_id'   => $featured_media_id,
 		'categories'          => $categories,
 		'tags'                => $tags,
-		'is_pressmobile_post'     => (bool) get_post_meta( $id, '_pressmobile_post', true ),
+		'is_pressonthego_post'     => (bool) get_post_meta( $id, '_pressonthego_post', true ),
 	] );
 }
 
 // ── POST /posts ───────────────────────────────────────────────────────────────
 
-function pressmobile_create_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+function pressonthego_create_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 	$p = $request->get_json_params();
 
-	$status = pressmobile_resolve_status( $p['status'] ?? 'draft', $p['scheduled_at'] ?? null );
+	$status = pressonthego_resolve_status( $p['status'] ?? 'draft', $p['scheduled_at'] ?? null );
 
 	$post_data = [
 		'post_title'   => sanitize_text_field( $p['title']   ?? '' ),
@@ -661,7 +661,7 @@ function pressmobile_create_post( WP_REST_Request $request ): WP_REST_Response|W
 	$post_id = wp_insert_post( $post_data, true );
 	if ( is_wp_error( $post_id ) ) return $post_id;
 
-	pressmobile_apply_meta( $post_id, $p );
+	pressonthego_apply_meta( $post_id, $p );
 
 	return new WP_REST_Response( [
 		'id'  => $post_id,
@@ -671,7 +671,7 @@ function pressmobile_create_post( WP_REST_Request $request ): WP_REST_Response|W
 
 // ── PUT /posts/{id} ───────────────────────────────────────────────────────────
 
-function pressmobile_update_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+function pressonthego_update_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 	$id = intval( $request['id'] );
 	if ( ! get_post( $id ) ) {
 		return new WP_Error( 'not_found', 'Post not found.', [ 'status' => 404 ] );
@@ -684,7 +684,7 @@ function pressmobile_update_post( WP_REST_Request $request ): WP_REST_Response|W
 	if ( isset( $p['content'] ) ) $post_data['post_content'] = wp_kses_post( $p['content'] );
 	if ( isset( $p['excerpt'] ) ) $post_data['post_excerpt'] = sanitize_text_field( $p['excerpt'] );
 	if ( isset( $p['slug'] ) )    $post_data['post_name']    = sanitize_title( $p['slug'] );
-	if ( isset( $p['status'] ) )  $post_data['post_status']  = pressmobile_resolve_status( $p['status'], $p['scheduled_at'] ?? null );
+	if ( isset( $p['status'] ) )  $post_data['post_status']  = pressonthego_resolve_status( $p['status'], $p['scheduled_at'] ?? null );
 
 	if ( isset( $post_data['post_status'] ) && $post_data['post_status'] === 'future' && ! empty( $p['scheduled_at'] ) ) {
 		$post_data['post_date']     = get_date_from_gmt( gmdate( 'Y-m-d H:i:s', strtotime( $p['scheduled_at'] ) ) );
@@ -694,7 +694,7 @@ function pressmobile_update_post( WP_REST_Request $request ): WP_REST_Response|W
 	$result = wp_update_post( $post_data, true );
 	if ( is_wp_error( $result ) ) return $result;
 
-	pressmobile_apply_meta( $id, $p );
+	pressonthego_apply_meta( $id, $p );
 
 	return new WP_REST_Response( [
 		'id'  => $id,
@@ -704,7 +704,7 @@ function pressmobile_update_post( WP_REST_Request $request ): WP_REST_Response|W
 
 // ── POST /media ───────────────────────────────────────────────────────────────
 
-function pressmobile_upload_media( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+function pressonthego_upload_media( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 	require_once ABSPATH . 'wp-admin/includes/media.php';
 	require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -746,19 +746,19 @@ function pressmobile_upload_media( WP_REST_Request $request ): WP_REST_Response|
 
 // ── POST /posts/{id}/adopt ────────────────────────────────────────────────────
 
-function pressmobile_adopt_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+function pressonthego_adopt_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 	$id   = intval( $request['id'] );
 	$post = get_post( $id );
 	if ( ! $post ) {
 		return new WP_Error( 'not_found', 'Post not found.', [ 'status' => 404 ] );
 	}
-	update_post_meta( $id, '_pressmobile_post', '1' );
+	update_post_meta( $id, '_pressonthego_post', '1' );
 	return new WP_REST_Response( [ 'ok' => true, 'id' => $id ], 200 );
 }
 
 // ── POST /categories ─────────────────────────────────────────────────────────
 
-function pressmobile_create_category( WP_REST_Request $req ): WP_REST_Response {
+function pressonthego_create_category( WP_REST_Request $req ): WP_REST_Response {
 	$name = sanitize_text_field( $req->get_param( 'name' ) ?? '' );
 	if ( empty( $name ) ) {
 		return new WP_REST_Response( [ 'error' => 'Name required' ], 400 );
@@ -777,7 +777,7 @@ function pressmobile_create_category( WP_REST_Request $req ): WP_REST_Response {
 
 // ── POST /update ──────────────────────────────────────────────────────────────
 
-function pressmobile_trigger_update(): WP_REST_Response|WP_Error {
+function pressonthego_trigger_update(): WP_REST_Response|WP_Error {
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 	require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 
@@ -785,12 +785,12 @@ function pressmobile_trigger_update(): WP_REST_Response|WP_Error {
 		return new WP_Error( 'fs_unavailable', 'Filesystem not available — update via WP admin instead.', [ 'status' => 503 ] );
 	}
 
-	$release = pressmobile_get_latest_release();
+	$release = pressonthego_get_latest_release();
 	if ( ! $release ) {
 		return new WP_Error( 'no_release', 'Could not fetch latest release from GitHub.', [ 'status' => 503 ] );
 	}
 
-	$zip_url = pressmobile_release_zip_url( $release );
+	$zip_url = pressonthego_release_zip_url( $release );
 	if ( ! $zip_url ) {
 		return new WP_Error( 'no_zip', 'No zip asset found in release.', [ 'status' => 503 ] );
 	}
@@ -802,11 +802,11 @@ function pressmobile_trigger_update(): WP_REST_Response|WP_Error {
 	$current = get_site_transient( 'update_plugins' ) ?: new stdClass();
 	if ( ! isset( $current->response ) ) $current->response = [];
 	$current->response[ $plugin_file ] = (object) [
-		'slug'        => 'pressmobile-connect',
+		'slug'        => 'pressonthego-connect',
 		'plugin'      => $plugin_file,
 		'new_version' => $new_version,
 		'package'     => $zip_url,
-		'url'         => 'https://github.com/Blu8print/PressMobile_WP',
+		'url'         => 'https://github.com/Blu8print/PressOnTheGO_WP',
 	];
 	set_site_transient( 'update_plugins', $current );
 
@@ -820,7 +820,7 @@ function pressmobile_trigger_update(): WP_REST_Response|WP_Error {
 		return new WP_Error( 'upgrade_failed', 'Plugin upgrade returned false — check WP filesystem permissions.', [ 'status' => 500 ] );
 	}
 
-	delete_transient( 'pressmobile_latest_release' );
+	delete_transient( 'pressonthego_latest_release' );
 
 	return new WP_REST_Response( [ 'ok' => true, 'version' => $new_version ], 200 );
 }
@@ -830,7 +830,7 @@ function pressmobile_trigger_update(): WP_REST_Response|WP_Error {
 /**
  * Resolve post status — 'publish', 'draft', or 'future' (when scheduled_at is set).
  */
-function pressmobile_resolve_status( string $requested, ?string $scheduled_at ): string {
+function pressonthego_resolve_status( string $requested, ?string $scheduled_at ): string {
 	if ( $scheduled_at && strtotime( $scheduled_at ) > time() ) {
 		return 'future';
 	}
@@ -841,7 +841,7 @@ function pressmobile_resolve_status( string $requested, ?string $scheduled_at ):
  * Read SEO title and meta description from Yoast or Rank Math.
  * Returns [seo_title, meta_description].
  */
-function pressmobile_read_seo_meta( int $post_id ): array {
+function pressonthego_read_seo_meta( int $post_id ): array {
 	$seo_title = '';
 	$meta_desc = '';
 
@@ -860,9 +860,9 @@ function pressmobile_read_seo_meta( int $post_id ): array {
  * Apply categories, tags, featured image, and SEO meta to a post.
  * Supports Yoast SEO and Rank Math automatically.
  */
-function pressmobile_apply_meta( int $post_id, array $p ): void {
-	// Mark this post as PressMobile-managed so it can be loaded back for editing.
-	update_post_meta( $post_id, '_pressmobile_post', '1' );
+function pressonthego_apply_meta( int $post_id, array $p ): void {
+	// Mark this post as PressOnTheGO-managed so it can be loaded back for editing.
+	update_post_meta( $post_id, '_pressonthego_post', '1' );
 	if ( ! empty( $p['categories'] ) ) {
 		wp_set_post_categories( $post_id, array_map( 'intval', $p['categories'] ) );
 	}

@@ -19,13 +19,13 @@ jobs:
 
       - name: Bump version in plugin header
         run: |
-          sed -i "s/ \* Version:.*/ * Version:     ${{ steps.version.outputs.version }}/" pressmobile-connect/pressmobile-connect.php
+          sed -i "s/ \* Version:.*/ * Version:     ${{ steps.version.outputs.version }}/" pressonthego-connect/pressonthego-connect.php
 
       - name: Build zip
-        run: zip -r pressmobile-connect.zip pressmobile-connect/
+        run: zip -r pressonthego-connect.zip pressonthego-connect/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: pressmobile-connect.zip
+          files: pressonthego-connect.zip
           generate_release_notes: true
