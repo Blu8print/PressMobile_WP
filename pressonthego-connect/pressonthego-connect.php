@@ -1,12 +1,12 @@
 <?php
 /**
- * Plugin Name: PressOnTheGO Connect
+ * Plugin Name: pressOnTheGo Connect
  * Plugin URI:  https://pressonthego.io
- * Description: Connect your WordPress site to the PressOnTheGO mobile app via QR code.
- * Version:     1.0.0
- * Author:      PressOnTheGO
+ * Description: Connect your WordPress site to the pressOnTheGo mobile app via QR code.
+ * Version:     1.1.0
+ * Author:      pressOnTheGo
  * License:     GPL-2.0+
- * Update URI:  https://github.com/Blu8print/PressOnTheGO_WP
+ * Update URI:  https://github.com/Blu8print/pressOnTheGo_WP
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -33,8 +33,8 @@ function pressonthego_generate_key(): string {
 add_action( 'admin_menu', 'pressonthego_admin_menu' );
 function pressonthego_admin_menu(): void {
 	add_options_page(
-		'PressOnTheGO Connect',
-		'PressOnTheGO',
+		'pressOnTheGo Connect',
+		'pressOnTheGo',
 		'manage_options',
 		'pressonthego',
 		'pressonthego_render_admin_page'
@@ -103,11 +103,11 @@ function pressonthego_render_admin_page(): void {
 	$s             = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
 	?>
 	<div class="wrap">
-		<h1>PressOnTheGO Connect</h1>
+		<h1>pressOnTheGo Connect</h1>
 
 		<?php if ( $regenerated ) : ?>
 			<div class="notice notice-success is-dismissible">
-				<p>API key regenerated. Scan the new QR code in the PressOnTheGO app to reconnect.</p>
+				<p>API key regenerated. Scan the new QR code in the pressOnTheGo app to reconnect.</p>
 			</div>
 		<?php endif; ?>
 
@@ -120,7 +120,7 @@ function pressonthego_render_admin_page(): void {
 		<div style="max-width:520px;margin-top:24px;">
 
 			<p style="color:#555;">
-				Scan this QR code in the PressOnTheGO app to connect your site instantly.
+				Scan this QR code in the pressOnTheGo app to connect your site instantly.
 			</p>
 
 			<div style="margin:24px 0;padding:16px;background:#fff;border:1px solid #ddd;display:inline-block;border-radius:8px;">
@@ -146,7 +146,7 @@ function pressonthego_render_admin_page(): void {
 			<h3 style="margin-top:0;">Rotate API key</h3>
 			<p style="color:#555;">
 				Generate a new key if your current one is compromised.
-				<strong>Your existing PressOnTheGO connection will stop working</strong> until you scan the new QR code.
+				<strong>Your existing pressOnTheGo connection will stop working</strong> until you scan the new QR code.
 			</p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -155,7 +155,7 @@ function pressonthego_render_admin_page(): void {
 				<button
 					type="submit"
 					class="button button-secondary"
-					onclick="return confirm('This will invalidate your current API key.\n\nYou will need to scan the new QR code in PressOnTheGO to reconnect.\n\nContinue?');"
+					onclick="return confirm('This will invalidate your current API key.\n\nYou will need to scan the new QR code in pressOnTheGo to reconnect.\n\nContinue?');"
 				>
 					Regenerate key
 				</button>
@@ -168,7 +168,7 @@ function pressonthego_render_admin_page(): void {
 		<details open>
 			<summary style="cursor:pointer;color:#1d2327;font-weight:600;font-size:14px;">Company profile</summary>
 			<p style="color:#555;margin:8px 0 16px;">
-				Fill in your company details so the PressOnTheGO app can write content tailored to your business.
+				Fill in your company details so the pressOnTheGo app can write content tailored to your business.
 				You can also set these up in the app itself.
 			</p>
 
@@ -347,7 +347,7 @@ function pressonthego_check_for_update( $transient ) {
 		'slug'        => 'pressonthego-connect',
 		'plugin'      => plugin_basename( __FILE__ ),
 		'new_version' => $latest,
-		'url'         => 'https://github.com/Blu8print/PressOnTheGO_WP',
+		'url'         => 'https://github.com/Blu8print/pressOnTheGo_WP',
 		'package'     => $zip_url,
 	];
 
@@ -364,14 +364,14 @@ function pressonthego_plugin_info( $result, $action, $args ) {
 	if ( ! $release ) return $result;
 
 	return (object) [
-		'name'          => 'PressOnTheGO Connect',
+		'name'          => 'pressOnTheGo Connect',
 		'slug'          => 'pressonthego-connect',
 		'version'       => ltrim( $release->tag_name, 'v' ),
-		'author'        => 'PressOnTheGO',
-		'homepage'      => 'https://github.com/Blu8print/PressOnTheGO_WP',
+		'author'        => 'pressOnTheGo',
+		'homepage'      => 'https://github.com/Blu8print/pressOnTheGo_WP',
 		'download_link' => pressonthego_release_zip_url( $release ),
 		'sections'      => [
-			'description' => 'Connect your WordPress site to the PressOnTheGO mobile app.',
+			'description' => 'Connect your WordPress site to the pressOnTheGo mobile app.',
 			'changelog'   => nl2br( esc_html( $release->body ?? '' ) ),
 		],
 	];
@@ -382,7 +382,7 @@ function pressonthego_get_latest_release(): ?object {
 	if ( $cached ) return $cached;
 
 	$response = wp_remote_get(
-		'https://api.github.com/repos/Blu8print/PressOnTheGO_WP/releases/latest',
+		'https://api.github.com/repos/Blu8print/pressOnTheGo_WP/releases/latest',
 		[
 			'headers' => [ 'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) ],
 			'timeout' => 10,
@@ -468,6 +468,16 @@ function pressonthego_register_routes(): void {
 		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
+	// Update media metadata (alt text, title)
+	register_rest_route( PRESSONTHEGO_API_NS, '/media/(?P<id>\d+)', [
+		'methods'             => 'PATCH',
+		'callback'            => 'pressonthego_update_media',
+		'permission_callback' => 'pressonthego_authenticate',
+		'args'                => [
+			'id' => [ 'validate_callback' => fn( $v ) => is_numeric( $v ) ],
+		],
+	] );
+
 	// Trigger plugin self-update from app
 	register_rest_route( PRESSONTHEGO_API_NS, '/update', [
 		'methods'             => 'POST',
@@ -475,7 +485,7 @@ function pressonthego_register_routes(): void {
 		'permission_callback' => 'pressonthego_authenticate',
 	] );
 
-	// Adopt post (mark as PressOnTheGO-managed so it can be edited in the app)
+	// Adopt post (mark as pressOnTheGo-managed so it can be edited in the app)
 	register_rest_route( PRESSONTHEGO_API_NS, '/posts/(?P<id>\d+)/adopt', [
 		'methods'             => 'POST',
 		'callback'            => 'pressonthego_adopt_post',
@@ -496,7 +506,7 @@ function pressonthego_register_routes(): void {
 // ── Authentication ────────────────────────────────────────────────────────────
 
 function pressonthego_authenticate( WP_REST_Request $request ): bool {
-	$key = $request->get_header( 'X-PressOnTheGO-Key' );
+	$key = $request->get_header( 'X-pressOnTheGo-Key' );
 	if ( ! $key || $key !== get_option( PRESSONTHEGO_OPTION_KEY ) ) {
 		return false;
 	}
@@ -744,6 +754,29 @@ function pressonthego_upload_media( WP_REST_Request $request ): WP_REST_Response
 	], 201 );
 }
 
+// ── PATCH /media/{id} ────────────────────────────────────────────────────────
+
+function pressonthego_update_media( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+	$id = intval( $request['id'] );
+	if ( ! get_post( $id ) || get_post_type( $id ) !== 'attachment' ) {
+		return new WP_Error( 'not_found', 'Media not found.', [ 'status' => 404 ] );
+	}
+
+	$p = $request->get_json_params();
+
+	if ( isset( $p['title'] ) ) {
+		wp_update_post( [ 'ID' => $id, 'post_title' => sanitize_text_field( $p['title'] ) ], true );
+	}
+	if ( isset( $p['alt'] ) ) {
+		update_post_meta( $id, '_wp_attachment_image_alt', sanitize_text_field( $p['alt'] ) );
+	}
+
+	return new WP_REST_Response( [
+		'id'  => $id,
+		'url' => wp_get_attachment_url( $id ),
+	], 200 );
+}
+
 // ── POST /posts/{id}/adopt ────────────────────────────────────────────────────
 
 function pressonthego_adopt_post( WP_REST_Request $request ): WP_REST_Response|WP_Error {
@@ -806,7 +839,7 @@ function pressonthego_trigger_update(): WP_REST_Response|WP_Error {
 		'plugin'      => $plugin_file,
 		'new_version' => $new_version,
 		'package'     => $zip_url,
-		'url'         => 'https://github.com/Blu8print/PressOnTheGO_WP',
+		'url'         => 'https://github.com/Blu8print/pressOnTheGo_WP',
 	];
 	set_site_transient( 'update_plugins', $current );
 
@@ -861,7 +894,7 @@ function pressonthego_read_seo_meta( int $post_id ): array {
  * Supports Yoast SEO and Rank Math automatically.
  */
 function pressonthego_apply_meta( int $post_id, array $p ): void {
-	// Mark this post as PressOnTheGO-managed so it can be loaded back for editing.
+	// Mark this post as pressOnTheGo-managed so it can be loaded back for editing.
 	update_post_meta( $post_id, '_pressonthego_post', '1' );
 	if ( ! empty( $p['categories'] ) ) {
 		wp_set_post_categories( $post_id, array_map( 'intval', $p['categories'] ) );
