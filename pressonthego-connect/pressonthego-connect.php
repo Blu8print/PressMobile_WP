@@ -3,7 +3,7 @@
  * Plugin Name: pressOnTheGo Connect
  * Plugin URI:  https://pressonthego.io
  * Description: Connect your WordPress site to the pressOnTheGo mobile app via QR code.
- * Version:     1.2.0
+ * Version:     1.5.0
  * Author:      pressOnTheGo
  * License:     GPL-2.0+
  * Update URI:  https://github.com/Blu8print/pressOnTheGo_WP
@@ -14,11 +14,7 @@ defined( 'ABSPATH' ) || exit;
 define( 'PRESSONTHEGO_OPTION_KEY',    'pressonthego_api_key' );
 define( 'PRESSONTHEGO_API_NS',        'pressonthego/v1' );
 define( 'PRESSONTHEGO_SETTINGS_KEY',  'pressonthego_settings' );
-define( 'PRESSONTHEGO_CPT_EVENT',     'pressonthego_event' );
-define( 'PRESSONTHEGO_CPT_VENUE',     'pressonthego_venue' );
-define( 'PRESSONTHEGO_CPT_ORGANIZER', 'pressonthego_organizer' );
-define( 'PRESSONTHEGO_CPT_PORTFOLIO', 'pressonthego_portfolio' );
-define( 'PRESSONTHEGO_TAX_EVENT_CAT', 'pressonthego_event_category' );
+define( 'PRESSONTHEGO_CPT_PORTFOLIO', 'potg_portfolio' );
 define( 'PRESSONTHEGO_TAX_SERVICE',   'pressonthego_service' );
 
 // ── Activation / Deactivation ─────────────────────────────────────────────────
@@ -28,13 +24,9 @@ function pressonthego_activate(): void {
 	if ( ! get_option( PRESSONTHEGO_OPTION_KEY ) ) {
 		update_option( PRESSONTHEGO_OPTION_KEY, pressonthego_generate_key() );
 	}
-	$s        = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	$defaults = pressonthego_default_cpt_slugs();
-	if ( empty( $s['events_slug'] ) ) {
-		$s['events_slug'] = $defaults['events'];
-	}
+	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
 	if ( empty( $s['portfolio_slug'] ) ) {
-		$s['portfolio_slug'] = $defaults['portfolio'];
+		$s['portfolio_slug'] = pressonthego_default_portfolio_slug();
 	}
 	update_option( PRESSONTHEGO_SETTINGS_KEY, $s );
 	// Register CPTs before flushing so rewrite rules are built correctly.
@@ -51,16 +43,8 @@ function pressonthego_generate_key(): string {
 	return 'pg_' . bin2hex( random_bytes( 24 ) );
 }
 
-function pressonthego_default_cpt_slugs(): array {
-	$lang = strtolower( substr( get_locale(), 0, 2 ) );
-	$map  = [
-		'nl' => [ 'events' => 'evenementen',    'portfolio' => 'portfolio' ],
-		'de' => [ 'events' => 'veranstaltungen', 'portfolio' => 'portfolio' ],
-		'fr' => [ 'events' => 'evenements',      'portfolio' => 'portfolio' ],
-		'es' => [ 'events' => 'eventos',         'portfolio' => 'portafolio' ],
-		'pl' => [ 'events' => 'wydarzenia',      'portfolio' => 'portfolio' ],
-	];
-	return $map[ $lang ] ?? [ 'events' => 'events', 'portfolio' => 'portfolio' ];
+function pressonthego_default_portfolio_slug(): string {
+	return strtolower( substr( get_locale(), 0, 2 ) ) === 'es' ? 'portafolio' : 'portfolio';
 }
 
 // ── Admin menu + assets ───────────────────────────────────────────────────────
@@ -116,12 +100,8 @@ function pressonthego_handle_save_settings(): void {
 	$existing['events_enabled']    = isset( $_POST['events_enabled'] )    ? '1' : '';
 	$existing['portfolio_enabled'] = isset( $_POST['portfolio_enabled'] ) ? '1' : '';
 
-	// Slug fields — must be valid URL slugs.
-	$defaults = pressonthego_default_cpt_slugs();
-	$events_slug    = sanitize_title( wp_unslash( $_POST['events_slug']    ?? '' ) );
 	$portfolio_slug = sanitize_title( wp_unslash( $_POST['portfolio_slug'] ?? '' ) );
-	$existing['events_slug']    = $events_slug    ?: $defaults['events'];
-	$existing['portfolio_slug'] = $portfolio_slug ?: $defaults['portfolio'];
+	$existing['portfolio_slug'] = $portfolio_slug ?: pressonthego_default_portfolio_slug();
 
 	update_option( PRESSONTHEGO_SETTINGS_KEY, $existing );
 	flush_rewrite_rules();
@@ -152,7 +132,7 @@ function pressonthego_render_admin_page(): void {
 	$regenerated    = isset( $_GET['regenerated'] );
 	$settings_saved = isset( $_GET['settings_saved'] );
 	$s              = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	$defaults       = pressonthego_default_cpt_slugs();
+	$portfolio_slug_default = pressonthego_default_portfolio_slug();
 	?>
 	<div class="wrap">
 		<h1>pressOnTheGo Connect</h1>
@@ -226,21 +206,24 @@ function pressonthego_render_admin_page(): void {
 					</p>
 
 					<h4 style="margin:0 0 8px;">Events</h4>
+					<?php $tribe_active = class_exists( 'Tribe__Events__Main' ); ?>
 					<table class="form-table" style="margin-top:0;">
 						<tr>
 							<th scope="row" style="width:200px;">Enable events</th>
 							<td>
 								<label>
 									<input type="checkbox" name="events_enabled" value="1" <?php checked( ! empty( $s['events_enabled'] ) ); ?>>
-									Enable the Events post type
+									Enable event publishing from the app
 								</label>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row">Archive slug</th>
-							<td>
-								<input type="text" name="events_slug" value="<?php echo esc_attr( $s['events_slug'] ?? $defaults['events'] ); ?>" class="regular-text">
-								<p class="description">URL of the events archive: <code><?php echo esc_html( trailingslashit( $site_url ) . ( $s['events_slug'] ?? $defaults['events'] ) ); ?>/</code></p>
+								<p class="description">
+									Events are managed by <strong>The Events Calendar</strong> plugin.
+									<?php if ( $tribe_active ) : ?>
+										<span style="color:#008a20;">&#10003; The Events Calendar is active.</span>
+									<?php else : ?>
+										<span style="color:#b00020;">&#10005; Not installed.</span>
+										<a href="<?php echo esc_url( admin_url( 'plugin-install.php?s=the+events+calendar&tab=search&type=term' ) ); ?>">Install The Events Calendar &rarr;</a>
+									<?php endif; ?>
+								</p>
 							</td>
 						</tr>
 					</table>
@@ -259,8 +242,8 @@ function pressonthego_render_admin_page(): void {
 						<tr>
 							<th scope="row">Archive slug</th>
 							<td>
-								<input type="text" name="portfolio_slug" value="<?php echo esc_attr( $s['portfolio_slug'] ?? $defaults['portfolio'] ); ?>" class="regular-text">
-								<p class="description">URL of the portfolio archive: <code><?php echo esc_html( trailingslashit( $site_url ) . ( $s['portfolio_slug'] ?? $defaults['portfolio'] ) ); ?>/</code></p>
+								<input type="text" name="portfolio_slug" value="<?php echo esc_attr( $s['portfolio_slug'] ?? $portfolio_slug_default ); ?>" class="regular-text">
+								<p class="description">URL of the portfolio archive: <code><?php echo esc_html( trailingslashit( $site_url ) . ( $s['portfolio_slug'] ?? $portfolio_slug_default ) ); ?>/</code></p>
 							</td>
 						</tr>
 					</table>
@@ -379,7 +362,7 @@ function pressonthego_render_admin_page(): void {
 					<tr><th>QR payload</th><td><code style="word-break:break-all;"><?php echo esc_html( $qr_payload ); ?></code></td></tr>
 					<tr><th>QRCode library</th><td id="pressonthego-debug-lib">Checking…</td></tr>
 					<tr><th>QR render</th><td id="pressonthego-debug-render">Pending…</td></tr>
-					<tr><th>Events enabled</th><td><?php echo ! empty( $s['events_enabled'] ) ? 'Yes' : 'No'; ?></td></tr>
+					<tr><th>Events enabled</th><td><?php echo ! empty( $s['events_enabled'] ) ? 'Yes' : 'No'; ?> <?php echo class_exists( 'Tribe__Events__Main' ) ? '(The Events Calendar active)' : '(The Events Calendar not detected)'; ?></td></tr>
 					<tr><th>Portfolio enabled</th><td><?php echo ! empty( $s['portfolio_enabled'] ) ? 'Yes' : 'No'; ?></td></tr>
 				</table>
 			</details>
@@ -514,83 +497,8 @@ function pressonthego_release_zip_url( object $release ): ?string {
 add_action( 'init', 'pressonthego_register_cpts' );
 function pressonthego_register_cpts(): void {
 	$s                 = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	$events_enabled    = ! empty( $s['events_enabled'] );
 	$portfolio_enabled = ! empty( $s['portfolio_enabled'] );
-	$defaults          = pressonthego_default_cpt_slugs();
-	$events_slug       = sanitize_title( $s['events_slug']    ?? $defaults['events'] );
-	$portfolio_slug    = sanitize_title( $s['portfolio_slug'] ?? $defaults['portfolio'] );
-
-	if ( $events_enabled ) {
-		register_taxonomy( PRESSONTHEGO_TAX_EVENT_CAT, PRESSONTHEGO_CPT_EVENT, [
-			'labels'            => [
-				'name'          => 'Event Categories',
-				'singular_name' => 'Event Category',
-				'add_new_item'  => 'Add New Event Category',
-			],
-			'hierarchical'      => true,
-			'show_in_rest'      => true,
-			'show_ui'           => true,
-			'show_admin_column' => true,
-			'rewrite'           => [ 'slug' => 'event-category' ],
-		] );
-
-		register_post_type( PRESSONTHEGO_CPT_EVENT, [
-			'labels'        => [
-				'name'          => 'Events',
-				'singular_name' => 'Event',
-				'add_new_item'  => 'Add New Event',
-				'edit_item'     => 'Edit Event',
-				'view_item'     => 'View Event',
-				'all_items'     => 'All Events',
-				'search_items'  => 'Search Events',
-			],
-			'public'        => true,
-			'has_archive'   => $events_slug,
-			'rewrite'       => [ 'slug' => $events_slug ],
-			'supports'      => [ 'title', 'editor', 'thumbnail', 'excerpt' ],
-			'show_in_rest'  => true,
-			'menu_icon'     => 'dashicons-calendar-alt',
-			'menu_position' => 5,
-		] );
-
-		register_post_type( PRESSONTHEGO_CPT_VENUE, [
-			'labels'       => [
-				'name'          => 'Venues',
-				'singular_name' => 'Venue',
-				'add_new_item'  => 'Add New Venue',
-				'edit_item'     => 'Edit Venue',
-				'all_items'     => 'All Venues',
-			],
-			'public'       => true,
-			'has_archive'  => false,
-			'rewrite'      => [ 'slug' => 'venue' ],
-			'supports'     => [ 'title', 'editor', 'thumbnail' ],
-			'show_in_rest' => true,
-			'show_in_menu' => 'edit.php?post_type=' . PRESSONTHEGO_CPT_EVENT,
-			'menu_icon'    => 'dashicons-location',
-		] );
-
-		register_post_type( PRESSONTHEGO_CPT_ORGANIZER, [
-			'labels'       => [
-				'name'          => 'Organizers',
-				'singular_name' => 'Organizer',
-				'add_new_item'  => 'Add New Organizer',
-				'edit_item'     => 'Edit Organizer',
-				'all_items'     => 'All Organizers',
-			],
-			'public'       => true,
-			'has_archive'  => false,
-			'rewrite'      => [ 'slug' => 'organizer' ],
-			'supports'     => [ 'title', 'editor', 'thumbnail' ],
-			'show_in_rest' => true,
-			'show_in_menu' => 'edit.php?post_type=' . PRESSONTHEGO_CPT_EVENT,
-			'menu_icon'    => 'dashicons-businessperson',
-		] );
-
-		pressonthego_register_event_meta();
-		pressonthego_register_venue_meta();
-		pressonthego_register_organizer_meta();
-	}
+	$portfolio_slug    = sanitize_title( $s['portfolio_slug'] ?? pressonthego_default_portfolio_slug() );
 
 	if ( $portfolio_enabled ) {
 		register_taxonomy( PRESSONTHEGO_TAX_SERVICE, PRESSONTHEGO_CPT_PORTFOLIO, [
@@ -631,64 +539,67 @@ function pressonthego_register_cpts(): void {
 
 // ── Meta registration ─────────────────────────────────────────────────────────
 
-function pressonthego_register_event_meta(): void {
-	$str = [ 'type' => 'string',  'single' => true, 'show_in_rest' => true ];
-	$int = [ 'type' => 'integer', 'single' => true, 'show_in_rest' => true ];
-
-	$fields = [
-		'_EventStartDate'        => $str,
-		'_EventEndDate'          => $str,
-		'_EventAllDay'           => $str,
-		'_EventDuration'         => $int,
-		'_EventURL'              => $str,
-		'_EventHideFromUpcoming' => $str,
-		'_EventCost'             => $str,
-		'_EventCurrencySymbol'   => $str,
-		'_EventCurrencyPosition' => $str,
-		'_EventShowMap'          => $str,
-		'_EventShowMapLink'      => $str,
-		'_EventVenueID'          => $int,
-		'_EventOrganizerID'      => $int,
-	];
-
-	foreach ( $fields as $key => $args ) {
-		register_post_meta( PRESSONTHEGO_CPT_EVENT, $key, $args );
-	}
-}
-
-function pressonthego_register_venue_meta(): void {
-	$str = [ 'type' => 'string', 'single' => true, 'show_in_rest' => true ];
-	$num = [ 'type' => 'number', 'single' => true, 'show_in_rest' => true ];
-
-	$fields = [
-		'_VenueAddress'       => $str,
-		'_VenueCity'          => $str,
-		'_VenueCountry'       => $str,
-		'_VenueZip'           => $str,
-		'_VenueStateProvince' => $str,
-		'_VenueLat'           => $num,
-		'_VenueLng'           => $num,
-		'_VenuePhone'         => $str,
-		'_VenueURL'           => $str,
-	];
-
-	foreach ( $fields as $key => $args ) {
-		register_post_meta( PRESSONTHEGO_CPT_VENUE, $key, $args );
-	}
-}
-
-function pressonthego_register_organizer_meta(): void {
-	$str = [ 'type' => 'string', 'single' => true, 'show_in_rest' => true ];
-	foreach ( [ '_OrganizerPhone', '_OrganizerEmail', '_OrganizerWebsite' ] as $key ) {
-		register_post_meta( PRESSONTHEGO_CPT_ORGANIZER, $key, $str );
-	}
-}
-
 function pressonthego_register_portfolio_meta(): void {
 	$str = [ 'type' => 'string', 'single' => true, 'show_in_rest' => true ];
 	foreach ( [ '_PortfolioURL', '_PortfolioClient' ] as $key ) {
 		register_post_meta( PRESSONTHEGO_CPT_PORTFOLIO, $key, $str );
 	}
+}
+
+// ── Meta boxes ────────────────────────────────────────────────────────────────
+
+add_action( 'add_meta_boxes', 'pressonthego_add_meta_boxes' );
+function pressonthego_add_meta_boxes(): void {
+	add_meta_box( 'potg_portfolio_details', 'Portfolio Details', 'pressonthego_portfolio_meta_box_html', PRESSONTHEGO_CPT_PORTFOLIO, 'normal', 'high' );
+}
+
+add_action( 'admin_head', 'pressonthego_meta_box_styles' );
+function pressonthego_meta_box_styles(): void {
+	$screen = get_current_screen();
+	$cpts   = [ PRESSONTHEGO_CPT_PORTFOLIO ];
+	if ( ! $screen || ! in_array( $screen->post_type, $cpts, true ) ) {
+		return;
+	}
+	?>
+	<style>
+	.potg-meta-table { width: 100%; border-collapse: collapse; }
+	.potg-meta-table th { width: 160px; text-align: left; padding: 8px 12px 8px 0; font-weight: 600; vertical-align: top; }
+	.potg-meta-table td { padding: 6px 0; vertical-align: top; }
+	.potg-meta-table input[type=text],
+	.potg-meta-table input[type=url],
+	.potg-meta-table input[type=email],
+	.potg-meta-table input[type=datetime-local],
+	.potg-meta-table select { width: 100%; max-width: 400px; }
+	</style>
+	<?php
+}
+
+function pressonthego_portfolio_meta_box_html( WP_Post $post ): void {
+	wp_nonce_field( 'pressonthego_portfolio_meta', 'pressonthego_portfolio_nonce' );
+	$client = get_post_meta( $post->ID, '_PortfolioClient', true );
+	$url    = get_post_meta( $post->ID, '_PortfolioURL',    true );
+	?>
+	<table class="potg-meta-table">
+		<tr>
+			<th><label for="_PortfolioClient">Client</label></th>
+			<td><input type="text" id="_PortfolioClient" name="_PortfolioClient" value="<?php echo esc_attr( $client ); ?>"></td>
+		</tr>
+		<tr>
+			<th><label for="_PortfolioURL">Project URL</label></th>
+			<td><input type="url" id="_PortfolioURL" name="_PortfolioURL" value="<?php echo esc_attr( $url ); ?>"></td>
+		</tr>
+	</table>
+	<?php
+}
+
+add_action( 'save_post_' . PRESSONTHEGO_CPT_PORTFOLIO, 'pressonthego_save_portfolio_meta' );
+function pressonthego_save_portfolio_meta( int $post_id ): void {
+	if ( ! isset( $_POST['pressonthego_portfolio_nonce'] ) ) return;
+	if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['pressonthego_portfolio_nonce'] ) ), 'pressonthego_portfolio_meta' ) ) return;
+	if ( ! current_user_can( 'edit_post', $post_id ) ) return;
+
+	update_post_meta( $post_id, '_PortfolioClient', sanitize_text_field( wp_unslash( $_POST['_PortfolioClient'] ?? '' ) ) );
+	update_post_meta( $post_id, '_PortfolioURL',    esc_url_raw(         wp_unslash( $_POST['_PortfolioURL']    ?? '' ) ) );
 }
 
 // ── Archive query filters ─────────────────────────────────────────────────────
@@ -700,49 +611,6 @@ function pressonthego_archive_query_filter( WP_Query $query ): void {
 	}
 
 	$post_type = $query->get( 'post_type' );
-
-	if ( $query->is_archive() && $post_type === PRESSONTHEGO_CPT_EVENT ) {
-		$when = sanitize_key( $_GET['when'] ?? 'upcoming' );
-		$now  = current_time( 'mysql' );
-
-		$meta_query = [ 'relation' => 'AND' ];
-
-		if ( $when === 'upcoming' ) {
-			$meta_query[] = [
-				'key'     => '_EventStartDate',
-				'value'   => $now,
-				'compare' => '>=',
-				'type'    => 'DATETIME',
-			];
-			// Exclude events explicitly hidden from the upcoming view.
-			$meta_query[] = [
-				'relation' => 'OR',
-				[ 'key' => '_EventHideFromUpcoming', 'compare' => 'NOT EXISTS' ],
-				[ 'key' => '_EventHideFromUpcoming', 'value' => 'yes', 'compare' => '!=' ],
-			];
-			$query->set( 'order', 'ASC' );
-		} else {
-			$meta_query[] = [
-				'key'     => '_EventStartDate',
-				'value'   => $now,
-				'compare' => '<',
-				'type'    => 'DATETIME',
-			];
-			$query->set( 'order', 'DESC' );
-		}
-
-		$query->set( 'meta_key',    '_EventStartDate' );
-		$query->set( 'orderby',     'meta_value' );
-		$query->set( 'meta_query',  $meta_query );
-
-		if ( ! empty( $_GET['category'] ) ) {
-			$query->set( 'tax_query', [ [
-				'taxonomy' => PRESSONTHEGO_TAX_EVENT_CAT,
-				'field'    => 'slug',
-				'terms'    => sanitize_text_field( $_GET['category'] ),
-			] ] );
-		}
-	}
 
 	if ( $query->is_archive() && $post_type === PRESSONTHEGO_CPT_PORTFOLIO ) {
 		if ( ! empty( $_GET['service'] ) ) {
@@ -762,10 +630,6 @@ function pressonthego_template_loader( string $template ): string {
 	$dir = plugin_dir_path( __FILE__ ) . 'templates/';
 
 	$checks = [
-		[ fn() => is_post_type_archive( PRESSONTHEGO_CPT_EVENT ),    'archive-pressonthego_event.php' ],
-		[ fn() => is_singular( PRESSONTHEGO_CPT_EVENT ),              'single-pressonthego_event.php' ],
-		[ fn() => is_singular( PRESSONTHEGO_CPT_VENUE ),              'single-pressonthego_venue.php' ],
-		[ fn() => is_singular( PRESSONTHEGO_CPT_ORGANIZER ),          'single-pressonthego_organizer.php' ],
 		[ fn() => is_post_type_archive( PRESSONTHEGO_CPT_PORTFOLIO ), 'archive-pressonthego_portfolio.php' ],
 		[ fn() => is_singular( PRESSONTHEGO_CPT_PORTFOLIO ),          'single-pressonthego_portfolio.php' ],
 	];
@@ -823,39 +687,6 @@ function pressonthego_register_routes(): void {
 		'methods' => 'POST', 'callback' => 'pressonthego_create_category', 'permission_callback' => $auth,
 	] );
 
-	// ── Events ────────────────────────────────────────────────────────────────
-
-	register_rest_route( PRESSONTHEGO_API_NS, '/events', [
-		'methods' => 'GET', 'callback' => 'pressonthego_get_events', 'permission_callback' => $auth,
-	] );
-	register_rest_route( PRESSONTHEGO_API_NS, '/events', [
-		'methods' => 'POST', 'callback' => 'pressonthego_create_event', 'permission_callback' => $auth,
-	] );
-	register_rest_route( PRESSONTHEGO_API_NS, '/events/(?P<id>\d+)', [
-		'methods' => 'GET', 'callback' => 'pressonthego_get_event', 'permission_callback' => $auth, 'args' => $id,
-	] );
-	register_rest_route( PRESSONTHEGO_API_NS, '/events/(?P<id>\d+)', [
-		'methods' => 'PUT', 'callback' => 'pressonthego_update_event', 'permission_callback' => $auth, 'args' => $id,
-	] );
-
-	// ── Venues ────────────────────────────────────────────────────────────────
-
-	register_rest_route( PRESSONTHEGO_API_NS, '/venues', [
-		'methods' => 'GET', 'callback' => 'pressonthego_get_venues', 'permission_callback' => $auth,
-	] );
-	register_rest_route( PRESSONTHEGO_API_NS, '/venues', [
-		'methods' => 'POST', 'callback' => 'pressonthego_create_venue', 'permission_callback' => $auth,
-	] );
-
-	// ── Organizers ────────────────────────────────────────────────────────────
-
-	register_rest_route( PRESSONTHEGO_API_NS, '/organizers', [
-		'methods' => 'GET', 'callback' => 'pressonthego_get_organizers', 'permission_callback' => $auth,
-	] );
-	register_rest_route( PRESSONTHEGO_API_NS, '/organizers', [
-		'methods' => 'POST', 'callback' => 'pressonthego_create_organizer', 'permission_callback' => $auth,
-	] );
-
 	// ── Portfolio ─────────────────────────────────────────────────────────────
 
 	register_rest_route( PRESSONTHEGO_API_NS, '/portfolio', [
@@ -871,11 +702,6 @@ function pressonthego_register_routes(): void {
 		'methods' => 'PUT', 'callback' => 'pressonthego_update_portfolio_item', 'permission_callback' => $auth, 'args' => $id,
 	] );
 
-	// ── Event categories / portfolio services ─────────────────────────────────
-
-	register_rest_route( PRESSONTHEGO_API_NS, '/event-categories', [
-		'methods' => 'POST', 'callback' => 'pressonthego_create_event_category', 'permission_callback' => $auth,
-	] );
 	register_rest_route( PRESSONTHEGO_API_NS, '/services', [
 		'methods' => 'POST', 'callback' => 'pressonthego_create_service', 'permission_callback' => $auth,
 	] );
@@ -899,7 +725,6 @@ function pressonthego_authenticate( WP_REST_Request $request ): bool {
 
 function pressonthego_get_info(): WP_REST_Response {
 	$s                 = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	$defaults          = pressonthego_default_cpt_slugs();
 	$events_enabled    = ! empty( $s['events_enabled'] );
 	$portfolio_enabled = ! empty( $s['portfolio_enabled'] );
 
@@ -938,13 +763,9 @@ function pressonthego_get_info(): WP_REST_Response {
 		})(),
 		// CPT state
 		'events_enabled'      => $events_enabled,
+		'tribe_active'        => class_exists( 'Tribe__Events__Main' ),
 		'portfolio_enabled'   => $portfolio_enabled,
-		'events_slug'         => $s['events_slug']    ?? $defaults['events'],
-		'portfolio_slug'      => $s['portfolio_slug'] ?? $defaults['portfolio'],
-		'event_categories'    => $events_enabled ? array_values( array_map(
-			fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ],
-			get_terms( [ 'taxonomy' => PRESSONTHEGO_TAX_EVENT_CAT, 'hide_empty' => false ] ) ?: []
-		) ) : [],
+		'portfolio_slug'      => $s['portfolio_slug'] ?? pressonthego_default_portfolio_slug(),
 		'portfolio_services'  => $portfolio_enabled ? array_values( array_map(
 			fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ],
 			get_terms( [ 'taxonomy' => PRESSONTHEGO_TAX_SERVICE, 'hide_empty' => false ] ) ?: []
@@ -978,12 +799,9 @@ function pressonthego_update_settings( WP_REST_Request $request ): WP_REST_Respo
 		}
 	}
 
-	$defaults = pressonthego_default_cpt_slugs();
-	foreach ( [ 'events_slug' => $defaults['events'], 'portfolio_slug' => $defaults['portfolio'] ] as $field => $default ) {
-		if ( array_key_exists( $field, $p ) ) {
-			$slug = sanitize_title( (string) ( $p[ $field ] ?? '' ) );
-			$existing[ $field ] = $slug ?: $default;
-		}
+	if ( array_key_exists( 'portfolio_slug', $p ) ) {
+		$slug = sanitize_title( (string) ( $p['portfolio_slug'] ?? '' ) );
+		$existing['portfolio_slug'] = $slug ?: pressonthego_default_portfolio_slug();
 	}
 
 	update_option( PRESSONTHEGO_SETTINGS_KEY, $existing );
@@ -1197,202 +1015,6 @@ function pressonthego_create_category( WP_REST_Request $req ): WP_REST_Response 
 	return new WP_REST_Response( [ 'id' => $term->term_id, 'name' => $term->name ], 201 );
 }
 
-// ── GET /events ───────────────────────────────────────────────────────────────
-
-function pressonthego_get_events(): WP_REST_Response|WP_Error {
-	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	if ( empty( $s['events_enabled'] ) ) {
-		return new WP_Error( 'disabled', 'Events are not enabled on this site.', [ 'status' => 403 ] );
-	}
-
-	$posts = get_posts( [
-		'post_type'      => PRESSONTHEGO_CPT_EVENT,
-		'post_status'    => [ 'publish', 'draft' ],
-		'posts_per_page' => 50,
-		'meta_key'       => '_EventStartDate',
-		'orderby'        => 'meta_value',
-		'order'          => 'ASC',
-	] );
-
-	return new WP_REST_Response( array_map( 'pressonthego_format_event_summary', $posts ) );
-}
-
-// ── POST /events ──────────────────────────────────────────────────────────────
-
-function pressonthego_create_event( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	if ( empty( $s['events_enabled'] ) ) {
-		return new WP_Error( 'disabled', 'Events are not enabled on this site.', [ 'status' => 403 ] );
-	}
-
-	$p       = $request->get_json_params();
-	$post_id = wp_insert_post( [
-		'post_type'    => PRESSONTHEGO_CPT_EVENT,
-		'post_title'   => sanitize_text_field( $p['title']   ?? '' ),
-		'post_content' => wp_kses_post( $p['content']        ?? '' ),
-		'post_excerpt' => sanitize_text_field( $p['excerpt'] ?? '' ),
-		'post_name'    => sanitize_title( $p['slug']         ?? '' ),
-		'post_status'  => in_array( $p['status'] ?? 'draft', [ 'publish', 'draft' ], true ) ? $p['status'] : 'draft',
-		'post_author'  => get_current_user_id(),
-	], true );
-
-	if ( is_wp_error( $post_id ) ) return $post_id;
-
-	pressonthego_apply_event_meta( $post_id, $p );
-
-	return new WP_REST_Response( [ 'id' => $post_id, 'url' => get_permalink( $post_id ) ], 201 );
-}
-
-// ── GET /events/{id} ──────────────────────────────────────────────────────────
-
-function pressonthego_get_event( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-	$id   = intval( $request['id'] );
-	$post = get_post( $id );
-	if ( ! $post || $post->post_type !== PRESSONTHEGO_CPT_EVENT ) {
-		return new WP_Error( 'not_found', 'Event not found.', [ 'status' => 404 ] );
-	}
-	return new WP_REST_Response( pressonthego_format_event_full( $post ) );
-}
-
-// ── PUT /events/{id} ──────────────────────────────────────────────────────────
-
-function pressonthego_update_event( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-	$id   = intval( $request['id'] );
-	$post = get_post( $id );
-	if ( ! $post || $post->post_type !== PRESSONTHEGO_CPT_EVENT ) {
-		return new WP_Error( 'not_found', 'Event not found.', [ 'status' => 404 ] );
-	}
-
-	$p         = $request->get_json_params();
-	$post_data = [ 'ID' => $id ];
-
-	if ( isset( $p['title'] ) )   $post_data['post_title']   = sanitize_text_field( $p['title'] );
-	if ( isset( $p['content'] ) ) $post_data['post_content'] = wp_kses_post( $p['content'] );
-	if ( isset( $p['excerpt'] ) ) $post_data['post_excerpt'] = sanitize_text_field( $p['excerpt'] );
-	if ( isset( $p['slug'] ) )    $post_data['post_name']    = sanitize_title( $p['slug'] );
-	if ( isset( $p['status'] ) )  $post_data['post_status']  = in_array( $p['status'], [ 'publish', 'draft' ], true ) ? $p['status'] : 'draft';
-
-	$result = wp_update_post( $post_data, true );
-	if ( is_wp_error( $result ) ) return $result;
-
-	pressonthego_apply_event_meta( $id, $p );
-
-	return new WP_REST_Response( [ 'id' => $id, 'url' => get_permalink( $id ) ], 200 );
-}
-
-// ── GET /venues ───────────────────────────────────────────────────────────────
-
-function pressonthego_get_venues(): WP_REST_Response|WP_Error {
-	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	if ( empty( $s['events_enabled'] ) ) {
-		return new WP_Error( 'disabled', 'Events are not enabled on this site.', [ 'status' => 403 ] );
-	}
-
-	$posts = get_posts( [
-		'post_type'      => PRESSONTHEGO_CPT_VENUE,
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'orderby'        => 'title',
-		'order'          => 'ASC',
-	] );
-
-	return new WP_REST_Response( array_map( fn( $p ) => [
-		'id'      => $p->ID,
-		'title'   => get_the_title( $p ),
-		'address' => get_post_meta( $p->ID, '_VenueAddress', true ),
-		'city'    => get_post_meta( $p->ID, '_VenueCity', true ),
-		'country' => get_post_meta( $p->ID, '_VenueCountry', true ),
-		'lat'     => (float) get_post_meta( $p->ID, '_VenueLat', true ) ?: null,
-		'lng'     => (float) get_post_meta( $p->ID, '_VenueLng', true ) ?: null,
-	], $posts ) );
-}
-
-// ── POST /venues ──────────────────────────────────────────────────────────────
-
-function pressonthego_create_venue( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	if ( empty( $s['events_enabled'] ) ) {
-		return new WP_Error( 'disabled', 'Events are not enabled on this site.', [ 'status' => 403 ] );
-	}
-
-	$p       = $request->get_json_params();
-	$post_id = wp_insert_post( [
-		'post_type'   => PRESSONTHEGO_CPT_VENUE,
-		'post_title'  => sanitize_text_field( $p['title'] ?? '' ),
-		'post_status' => 'publish',
-		'post_author' => get_current_user_id(),
-	], true );
-
-	if ( is_wp_error( $post_id ) ) return $post_id;
-
-	$meta_map = [
-		'address' => '_VenueAddress', 'city'    => '_VenueCity',
-		'country' => '_VenueCountry', 'zip'     => '_VenueZip',
-		'state'   => '_VenueStateProvince',
-		'lat'     => '_VenueLat',    'lng'     => '_VenueLng',
-		'phone'   => '_VenuePhone',  'url'     => '_VenueURL',
-	];
-	foreach ( $meta_map as $field => $key ) {
-		if ( array_key_exists( $field, $p ) ) {
-			update_post_meta( $post_id, $key, $p[ $field ] );
-		}
-	}
-
-	return new WP_REST_Response( [ 'id' => $post_id, 'url' => get_permalink( $post_id ) ], 201 );
-}
-
-// ── GET /organizers ───────────────────────────────────────────────────────────
-
-function pressonthego_get_organizers(): WP_REST_Response|WP_Error {
-	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	if ( empty( $s['events_enabled'] ) ) {
-		return new WP_Error( 'disabled', 'Events are not enabled on this site.', [ 'status' => 403 ] );
-	}
-
-	$posts = get_posts( [
-		'post_type'      => PRESSONTHEGO_CPT_ORGANIZER,
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'orderby'        => 'title',
-		'order'          => 'ASC',
-	] );
-
-	return new WP_REST_Response( array_map( fn( $p ) => [
-		'id'      => $p->ID,
-		'title'   => get_the_title( $p ),
-		'phone'   => get_post_meta( $p->ID, '_OrganizerPhone', true ),
-		'email'   => get_post_meta( $p->ID, '_OrganizerEmail', true ),
-		'website' => get_post_meta( $p->ID, '_OrganizerWebsite', true ),
-	], $posts ) );
-}
-
-// ── POST /organizers ──────────────────────────────────────────────────────────
-
-function pressonthego_create_organizer( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-	$s = get_option( PRESSONTHEGO_SETTINGS_KEY ) ?: [];
-	if ( empty( $s['events_enabled'] ) ) {
-		return new WP_Error( 'disabled', 'Events are not enabled on this site.', [ 'status' => 403 ] );
-	}
-
-	$p       = $request->get_json_params();
-	$post_id = wp_insert_post( [
-		'post_type'   => PRESSONTHEGO_CPT_ORGANIZER,
-		'post_title'  => sanitize_text_field( $p['title'] ?? '' ),
-		'post_status' => 'publish',
-		'post_author' => get_current_user_id(),
-	], true );
-
-	if ( is_wp_error( $post_id ) ) return $post_id;
-
-	foreach ( [ 'phone' => '_OrganizerPhone', 'email' => '_OrganizerEmail', 'website' => '_OrganizerWebsite' ] as $field => $key ) {
-		if ( array_key_exists( $field, $p ) ) {
-			update_post_meta( $post_id, $key, sanitize_text_field( (string) $p[ $field ] ) );
-		}
-	}
-
-	return new WP_REST_Response( [ 'id' => $post_id, 'url' => get_permalink( $post_id ) ], 201 );
-}
-
 // ── GET /portfolio ────────────────────────────────────────────────────────────
 
 function pressonthego_get_portfolio(): WP_REST_Response|WP_Error {
@@ -1507,25 +1129,6 @@ function pressonthego_update_portfolio_item( WP_REST_Request $request ): WP_REST
 	pressonthego_apply_portfolio_meta( $id, $p );
 
 	return new WP_REST_Response( [ 'id' => $id, 'url' => get_permalink( $id ) ], 200 );
-}
-
-// ── POST /event-categories ────────────────────────────────────────────────────
-
-function pressonthego_create_event_category( WP_REST_Request $req ): WP_REST_Response {
-	$name = sanitize_text_field( $req->get_param( 'name' ) ?? '' );
-	if ( empty( $name ) ) {
-		return new WP_REST_Response( [ 'error' => 'Name required' ], 400 );
-	}
-	$existing = get_term_by( 'name', $name, PRESSONTHEGO_TAX_EVENT_CAT );
-	if ( $existing ) {
-		return new WP_REST_Response( [ 'id' => $existing->term_id, 'name' => $existing->name, 'slug' => $existing->slug ], 200 );
-	}
-	$result = wp_insert_term( $name, PRESSONTHEGO_TAX_EVENT_CAT );
-	if ( is_wp_error( $result ) ) {
-		return new WP_REST_Response( [ 'error' => $result->get_error_message() ], 500 );
-	}
-	$term = get_term( $result['term_id'], PRESSONTHEGO_TAX_EVENT_CAT );
-	return new WP_REST_Response( [ 'id' => $term->term_id, 'name' => $term->name, 'slug' => $term->slug ], 201 );
 }
 
 // ── POST /services ────────────────────────────────────────────────────────────
@@ -1648,39 +1251,6 @@ function pressonthego_apply_meta( int $post_id, array $p ): void {
 	}
 }
 
-function pressonthego_apply_event_meta( int $post_id, array $p ): void {
-	update_post_meta( $post_id, '_pressonthego_post', '1' );
-
-	$meta_map = [
-		'start_date'          => '_EventStartDate',
-		'end_date'            => '_EventEndDate',
-		'all_day'             => '_EventAllDay',
-		'duration'            => '_EventDuration',
-		'event_url'           => '_EventURL',
-		'hide_from_upcoming'  => '_EventHideFromUpcoming',
-		'cost'                => '_EventCost',
-		'currency_symbol'     => '_EventCurrencySymbol',
-		'currency_position'   => '_EventCurrencyPosition',
-		'show_map'            => '_EventShowMap',
-		'show_map_link'       => '_EventShowMapLink',
-		'venue_id'            => '_EventVenueID',
-		'organizer_id'        => '_EventOrganizerID',
-	];
-
-	foreach ( $meta_map as $field => $key ) {
-		if ( array_key_exists( $field, $p ) ) {
-			update_post_meta( $post_id, $key, $p[ $field ] );
-		}
-	}
-
-	if ( ! empty( $p['categories'] ) ) {
-		wp_set_post_terms( $post_id, array_map( 'intval', $p['categories'] ), PRESSONTHEGO_TAX_EVENT_CAT );
-	}
-	if ( ! empty( $p['featured_media'] ) ) {
-		set_post_thumbnail( $post_id, intval( $p['featured_media'] ) );
-	}
-}
-
 function pressonthego_apply_portfolio_meta( int $post_id, array $p ): void {
 	update_post_meta( $post_id, '_pressonthego_post', '1' );
 
@@ -1698,56 +1268,3 @@ function pressonthego_apply_portfolio_meta( int $post_id, array $p ): void {
 	}
 }
 
-function pressonthego_format_event_summary( WP_Post $post ): array {
-	$id       = $post->ID;
-	$venue_id = (int) get_post_meta( $id, '_EventVenueID', true );
-
-	return [
-		'id'                   => $id,
-		'title'                => get_the_title( $post ),
-		'status'               => $post->post_status,
-		'url'                  => get_permalink( $post ),
-		'start_date'           => get_post_meta( $id, '_EventStartDate', true ),
-		'end_date'             => get_post_meta( $id, '_EventEndDate', true ),
-		'all_day'              => get_post_meta( $id, '_EventAllDay', true ) === 'yes',
-		'venue_city'           => $venue_id ? get_post_meta( $venue_id, '_VenueCity', true ) : null,
-		'featured_media_url'   => get_the_post_thumbnail_url( $id, 'medium' ) ?: null,
-		'is_pressonthego_post' => (bool) get_post_meta( $id, '_pressonthego_post', true ),
-	];
-}
-
-function pressonthego_format_event_full( WP_Post $post ): array {
-	$id    = $post->ID;
-	$v_id  = (int) get_post_meta( $id, '_EventVenueID',     true );
-	$o_id  = (int) get_post_meta( $id, '_EventOrganizerID', true );
-
-	return [
-		'id'                   => $id,
-		'title'                => get_the_title( $post ),
-		'content'              => $post->post_content,
-		'excerpt'              => $post->post_excerpt,
-		'slug'                 => $post->post_name,
-		'status'               => $post->post_status,
-		'url'                  => get_permalink( $post ),
-		'start_date'           => get_post_meta( $id, '_EventStartDate',        true ),
-		'end_date'             => get_post_meta( $id, '_EventEndDate',          true ),
-		'all_day'              => get_post_meta( $id, '_EventAllDay',           true ) === 'yes',
-		'duration'             => (int) get_post_meta( $id, '_EventDuration',   true ),
-		'event_url'            => get_post_meta( $id, '_EventURL',              true ),
-		'hide_from_upcoming'   => get_post_meta( $id, '_EventHideFromUpcoming', true ) === 'yes',
-		'cost'                 => get_post_meta( $id, '_EventCost',             true ),
-		'currency_symbol'      => get_post_meta( $id, '_EventCurrencySymbol',   true ),
-		'currency_position'    => get_post_meta( $id, '_EventCurrencyPosition', true ),
-		'show_map'             => get_post_meta( $id, '_EventShowMap',          true ) === 'TRUE',
-		'show_map_link'        => get_post_meta( $id, '_EventShowMapLink',      true ) === 'TRUE',
-		'venue_id'             => $v_id ?: null,
-		'organizer_id'         => $o_id ?: null,
-		'featured_media_url'   => get_the_post_thumbnail_url( $id, 'full' ) ?: null,
-		'featured_media_id'    => (int) get_post_thumbnail_id( $id ) ?: null,
-		'categories'           => array_values( array_map(
-			fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ],
-			get_the_terms( $id, PRESSONTHEGO_TAX_EVENT_CAT ) ?: []
-		) ),
-		'is_pressonthego_post' => (bool) get_post_meta( $id, '_pressonthego_post', true ),
-	];
-}
